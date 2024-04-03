@@ -277,7 +277,7 @@ def get_commit(api: GhApi, owner: str, repo: str, base_commit: str = None):
         commit = api.repos.list_commits(owner, repo)[0]
     return commit
 
-
+import config
 
 def get_instances(file_path: str, base_commit: str = None, split: str = None):
     """
@@ -295,7 +295,8 @@ def get_instances(file_path: str, base_commit: str = None, split: str = None):
     # If file_path is a github issue url, fetch the issue and return a single instance
     if is_from_github_url(file_path):
         match = GITHUB_ISSUE_URL_PATTERN.search(file_path)
-        api = GhApi()
+        cfg = config.Config(os.path.join(os.getcwd(), "keys.cfg"))
+        api = GhApi(token=cfg.get("GITHUB_TOKEN", "token"))
         if match:
             owner, repo, issue_number = match.groups()
             record = dict()
