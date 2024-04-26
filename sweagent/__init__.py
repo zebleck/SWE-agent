@@ -1,4 +1,4 @@
-__version__ = "0.0.1"
+__version__ = "0.2.0"
 
 from sweagent.agent.agents import (
     Agent,
@@ -17,3 +17,13 @@ from sweagent.environment.swe_env import (
 from sweagent.environment.utils import (
     get_data_path_name,
 )
+
+
+__all__ = [
+    "Agent",
+    "AgentArguments",
+    "ModelArguments",
+    "EnvironmentArguments",
+    "SWEEnv",
+    "get_data_path_name",
+]

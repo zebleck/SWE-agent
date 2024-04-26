@@ -3,11 +3,10 @@ dependencies:
   - python=3.9
   - pip
   - pip:
-    - anthropic
+    - anthropic[bedrock]
     - config
     - datasets
     - docker
-    - gnureadline
     - gymnasium
     - numpy
     - openai>=1.0
@@ -18,5 +17,6 @@ dependencies:
     - tenacity
     - unidiff
     - simple-parsing
-    - together
+    - together>=1.1.0 # Versions of together below 1.1.0 are not compatible. see https://github.com/princeton-nlp/SWE-agent/issues/135
     - ollama
+    - rich-argparse

@@ -3,7 +3,6 @@ import json
 import os
 import traceback
 
-from datasets import load_dataset, load_from_disk
 from collections import Counter
 from rich import print
 from swebench import (
@@ -71,7 +70,6 @@ def main(predictions_path, log_dir, swe_bench_tasks, testbed, skip_existing, tim
         print("✅ Finished evaluation")
     except Exception as e:
         print(f"❌ Evaluation failed: {e}\n{traceback.format_exc()}")
-        pass
     print("==================================")
     os.remove(pred_path_temp)
 
@@ -151,33 +149,22 @@ def main(predictions_path, log_dir, swe_bench_tasks, testbed, skip_existing, tim
         resolution_status = get_resolution_status(report)
         scorecard["statuses"].append(resolution_status)
 
-        diff_obj = PatchSet(p[KEY_PREDICTION])
-        scorecard["patch_files"] = [
-            x.path
-            for x in diff_obj.modified_files
-            + diff_obj.added_files
-            + diff_obj.removed_files
-        ]
-        scorecard["patch_lines_add"] = sum([f.added for f in diff_obj])
-        scorecard["patch_lines_del"] = sum([f.removed for f in diff_obj])
+        try:
+            diff_obj = PatchSet(p[KEY_PREDICTION])
+            scorecard["patch_files"] = [
+                x.path
+                for x in diff_obj.modified_files
+                + diff_obj.added_files
+                + diff_obj.removed_files
+            ]
+            scorecard["patch_lines_add"] = sum([f.added for f in diff_obj])
+            scorecard["patch_lines_del"] = sum([f.removed for f in diff_obj])
+        except Exception as e:
+            print(f"[{p[KEY_INSTANCE_ID]}] Error parsing prediction diff: {e}")
+            scorecard["patch_files"] = []
+            scorecard["patch_lines_add"] = 0
+            scorecard["patch_lines_del"] = 0
         scorecards.append(scorecard)
-
-    # Calculate cumulative results
-    get_ids_with_status = lambda x: [
-        s[KEY_INSTANCE_ID] for s in scorecards if x in s["statuses"]
-    ]
-    report = {
-        "# Not Generated": len(get_ids_with_status("not_generated")),
-        "# Generated": len(get_ids_with_status("generated")),
-        "# Applied": len(get_ids_with_status("applied")),
-        "# Resolved": len(get_ids_with_status("RESOLVED_FULL")),
-        "# Install Fail": len(get_ids_with_status("install_fail")),
-    }
-    print(f"== Evaluation Report ==\n{report}")
-
-    report_exits = dict(
-        Counter([s["exit_status"] if "exit_status" in s else "n/a" for s in scorecards])
-    )
 
     # Save to summary, scorecard json
     path_scorecards = os.path.join(directory, "scorecards.json")
@@ -185,42 +172,16 @@ def main(predictions_path, log_dir, swe_bench_tasks, testbed, skip_existing, tim
         json.dump(scorecards, fp=f, indent=2)
     print(f"- Wrote per-instance scorecards to {path_scorecards}")
 
+    # Get results and write to file
+    print(f"Reference Report:")
+    report = get_model_report(directory_name, pred_path_orig, swe_bench_tasks, log_dir)
+    for k, v in report.items():
+        print(f"- {k}: {len(v)}")
+
     path_results = os.path.join(directory, "results.json")
     with open(path_results, "w") as f:
-        json.dump(
-            {
-                "report": report,
-                "report_exits": report_exits,
-                "not_generated": get_ids_with_status("not_generated"),
-                "generated": get_ids_with_status("generated"),
-                "applied": get_ids_with_status("applied"),
-                "resolved": get_ids_with_status("RESOLVED_FULL"),
-                "install_fail": get_ids_with_status("install_fail"),
-            },
-            fp=f,
-            indent=2,
-        )
+        json.dump(report, f, indent=2)
     print(f"- Wrote summary of run to {path_results}")
-
-    # Sanity check against get_model_report
-    report = get_model_report(
-        directory_name, pred_path_orig, swe_bench_tasks, log_dir
-    )
-    by_outcome = {}
-    by_outcome_func = lambda status: len(
-        [
-            instance_id
-            for _, v in report.items()
-            if isinstance(v, dict)
-            for instance_id in v[status]
-        ]
-    )
-    by_outcome["# Not Generated"] = by_outcome_func("none")
-    by_outcome["# Generated"] = by_outcome_func("generated")
-    by_outcome["# Applied"] = by_outcome_func("applied")
-    by_outcome["# Resolved"] = by_outcome_func("resolved")
-    by_outcome["# Install Fail"] = by_outcome_func("install_fail")
-    print(f"Reference Report:\n{by_outcome}")
 
 
 if __name__ == "__main__":
